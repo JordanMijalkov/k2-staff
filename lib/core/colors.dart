@@ -1,0 +1,42 @@
+import 'package:flutter/material.dart';
+
+class K2Colors {
+  static const primary = Color(0xffff005e);
+  static const primaryHover = Color(0xff900a3c);
+  static const secondary = Color(0xff513c5e);
+  static const secondaryHover = Color(0xff684e79);
+  static const info = Color(0xff1579c6);
+  static const success = Color(0xff42b964);
+  static const warning = Color(0xfff7b500);
+  static const danger = Color(0xffb81111);
+  static const midnight = Color(0xff030f1c);
+  static const paragraphtext = Color(0xff273142);
+  static const slateIcons = Color(0xff516173);
+  static const blueyGrey = Color(0xff8e9bac);
+  static const lightBlueGrey = Color(0xffc5d0de);
+  static const pagebackgrounds = Color(0xfff1f4f8);
+  static const white = Color(0xffffffff);
+  static const tertiary = Color(0xff00bfff);
+  static const tertiaryHover = Color(0xff007096);
+  static const secondaryPurple = Color(0xff9370db);
+  static const secondaryPink = Color(0xffff69b4);
+  static const secondarySalmon = Color(0xfffa8072);
+  static const secondaryGreen = Color(0xff008b8b);
+  static const secondaryYellow = Color(0xffffe283);
+  static const secondaryLime = Color(0xff9acd32);
+  static const secondaryBrown = Color(0xffcd853f);
+  static const secondarySteelBlue = Color(0xff4682b4);
+  static const createSecondaryTeal = Color(0xff0fdebd);
+  static const secondaryOrange = Color(0xfffe9a34);
+  static const secondaryBrightPurple = Color(0xff5540fb);
+  static const secondaryRed = Color(0xffff3d57);
+  static const secondaryBlue1 = Color(0xff0081ff);
+  static const teal = Color(0xff008b8b);
+  static const barrierColor = Color.fromARGB(100, 124, 124, 124);
+  static const lightPeach = const Color(0xffffcdcd);
+  static const charcoalGrey = const Color(0xff2e2e39);   
+  static const dirtyPurple = Color(0xff513c5e);
+  static const lightBlueyGrey = Color(0xffc5d0de);    
+  static const Color pinkRed = const Color(0xffff005e);
+  static const Color blueGrey = const Color(0xff8e8e93);   
+}

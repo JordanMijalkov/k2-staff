@@ -1,0 +1,124 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  - master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  DOCKER_REPO: 463767061150.dkr.ecr.us-west-2.amazonaws.com
+  DOCKER_NAMESPACE: kangarootime/k2-staff
+  DOCKER_TAG: $(Build.BuildId)
+  # Flutter compile-time variables
+  # Sensitive info should be loaded via an ENV variable in Azure!
+  K2_API_URL: "k2-api.kangarootime.com"
+  K2_API_URL_RESOLVER_PATH: "core/api"
+  K2_API_URL_WS_PATH: "graphql"
+  K2_API_SECURE_PROTOCOL: "true"
+  COGNITO_USER_POOL_ID: "us-west-2_cFXDgF3Ue"
+  COGNITO_CLIENT_ID: "757oom3a8ehsespojlbf5brul2"
+  SENTRY_DSN: "b46a80e5a09d4d69aea5584f91f2301b@o429824.ingest.sentry.io/5377421"
+
+steps:
+
+  # Install SSH key
+  # Install an SSH key prior to a build or deployment
+  # https://docs.microsoft.com/en-us/azure/devops/pipelines/tasks/utility/install-ssh-key?view=azure-devops
+  # https://dev.azure.com/kangarootime/K2.1/_library?itemType=SecureFiles
+  - task: InstallSSHKey@0
+    inputs:
+      knownHostsEntry: "ssh.dev.azure.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7Hr1oTWqNqOlzGJOfGJ4NakVyIzf1rXYd4d7wo6jBlkLvCA4odBlL0mDUyZ0/QUfTTqeu+tm22gOsv+VrVTMk6vwRU75gY/y9ut5Mb3bR5BV58dKXyq9A9UeB5Cakehn5Zgm6x1mKoVyf+FFn26iYqXJRgzIZZcZ5V6hrE0Qg39kZm4az48o0AUbf6Sp4SLdvnuMa2sVNwHBboS7EJkm57XQPVU3/QpyNLHbWDdzwtrlS+ez30S3AdYhLKEOxAG8weOnyrtLJAUen9mTkol8oII1edf7mWWbWVf0nBmly21+nZcmCTISQBtdcyPaEno7fFQMDD26/s0lfKob4Kw8H"
+      sshKeySecureFile: "id_rsa_k2_ci"
+    displayName: "Install SSH keys"
+
+  - script: |
+      git clone -b beta https://github.com/flutter/flutter.git
+      export PATH=`pwd`/flutter/bin:$PATH
+      flutter config --enable-web
+      flutter version 1.19.0-4.3.pre
+      flutter doctor
+      echo "Installed flutter to `pwd`/flutter"
+      flutter --version
+    displayName: 'flutter install'
+
+  - script: |
+      set -x
+      export PATH=`pwd`/flutter/bin:$PATH
+      apt update
+      apt upgrade -y
+      flutter clean
+      flutter pub get
+      flutter build web \
+        --dart-define=K2_API_URL=$K2_API_URL \
+        --dart-define=K2_API_URL_RESOLVER_PATH=$K2_API_URL_RESOLVER_PATH \
+        --dart-define=K2_API_URL_WS_PATH=$K2_API_URL_WS_PATH \
+        --dart-define=K2_API_SECURE_PROTOCOL=$K2_API_SECURE_PROTOCOL \
+        --dart-define=SENTRY_DSN=$SENTRY_DSN \
+        --dart-define=COGNITO_USER_POOL_ID=$COGNITO_USER_POOL_ID \
+        --dart-define=COGNITO_CLIENT_ID=$COGNITO_CLIENT_ID
+    displayName: 'flutter build'
+
+
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: 'AWS-Azure'
+      regionName: 'us-west-2'
+      scriptType: 'inline'
+      inlineScript: |
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
+        chmod +x ./kubectl
+        sudo mv ./kubectl /usr/local/bin/kubectl
+        curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+        aws eks --region us-west-2 update-kubeconfig --name production-k2-eks-cluster
+        kubectl cluster-info
+    displayName: 'Install/Configure kubectl + helm'
+
+  - task: DockerInstaller@0
+    inputs:
+      dockerVersion: '17.09.0-ce'
+    displayName: 'Install Docker 17.09.0-ce'
+
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: 'AWS-Azure'
+      regionName: 'us-west-2'
+      scriptType: 'inline'
+      inlineScript: |
+        aws ecr get-login-password | docker login --username AWS --password-stdin $(DOCKER_REPO)/$(DOCKER_NAMESPACE)
+    displayName: 'ECR Login'
+
+  - script: |
+      docker build -t $(DOCKER_NAMESPACE):$(DOCKER_TAG) .
+      docker tag $(DOCKER_NAMESPACE):$(DOCKER_TAG) $(DOCKER_REPO)/$(DOCKER_NAMESPACE):$(DOCKER_TAG)
+      docker tag $(DOCKER_NAMESPACE):$(DOCKER_TAG) $(DOCKER_REPO)/$(DOCKER_NAMESPACE):latest
+    displayName: "Docker Build and Tag Images"
+
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: 'AWS-Azure'
+      regionName: 'us-west-2'
+      scriptType: 'inline'
+      inlineScript: |
+        docker push $(DOCKER_REPO)/$(DOCKER_NAMESPACE):$(DOCKER_TAG)
+        docker push $(DOCKER_REPO)/$(DOCKER_NAMESPACE):latest
+    displayName: 'ECR Push Image'
+
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: 'AWS-Azure'
+      regionName: 'us-west-2'
+      scriptType: 'inline'
+      inlineScript: |
+        helm upgrade --install \
+        --atomic \
+        -f ./k2-staff-chart/values.yaml \
+        --set image.tag=$(Build.BuildId) \
+        --set ingress.hosts[0].host=staff.kangarootime.com \
+        --namespace production \
+        k2-staff \
+        ./k2-staff-chart
+    displayName: 'Helm Release'

@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "kisi-ios-st2u-framework",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kisi-inc/kisi-ios-st2u-framework",
+      "state" : {
+        "branch" : "master",
+        "revision" : "eb930a9ebb59e824c0035255391688cb5dc9bb23"
+      }
+    }
+  ],
+  "version" : 2
+}

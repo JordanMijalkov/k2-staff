@@ -1,0 +1,89 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- development
+- master
+
+pool:
+  vmImage: macOS-latest
+
+name: $(Date:yyyyMMdd)$(Rev:rr)
+
+variables:
+  - name: configuration
+    value: "Release"
+  - name: sdk
+    value: "iphoneos"
+
+steps:
+- script: echo '$(Build.BuildNumber)' 
+- task: InstallSSHKey@0
+  inputs:
+    knownHostsEntry: "ssh.dev.azure.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7Hr1oTWqNqOlzGJOfGJ4NakVyIzf1rXYd4d7wo6jBlkLvCA4odBlL0mDUyZ0/QUfTTqeu+tm22gOsv+VrVTMk6vwRU75gY/y9ut5Mb3bR5BV58dKXyq9A9UeB5Cakehn5Zgm6x1mKoVyf+FFn26iYqXJRgzIZZcZ5V6hrE0Qg39kZm4az48o0AUbf6Sp4SLdvnuMa2sVNwHBboS7EJkm57XQPVU3/QpyNLHbWDdzwtrlS+ez30S3AdYhLKEOxAG8weOnyrtLJAUen9mTkol8oII1edf7mWWbWVf0nBmly21+nZcmCTISQBtdcyPaEno7fFQMDD26/s0lfKob4Kw8H"
+    sshKeySecureFile: "id_rsa_k2_ci"
+  displayName: "Install SSH keys"
+
+- task: InstallAppleCertificate@2
+  inputs:
+    certSecureFile: 'Certificates.p12'
+    certPwd: 'Kangarootime2021!'
+    keychain: 'temp'
+    
+- task: InstallAppleProvisioningProfile@1
+  inputs:
+    provisioningProfileLocation: 'secureFiles'
+    provProfileSecureFile: 'K2_Workforce_Connect.mobileprovision'
+
+- task: FlutterInstall@0
+  inputs:
+    mode: 'auto'
+    channel: 'stable'
+    version: 'latest'
+#    customVersion: '3.0.1'
+
+- task: FlutterCommand@0
+  inputs:
+    projectDirectory: '.'
+    arguments: 'pub get'
+
+- task: FlutterCommand@0
+  inputs:
+    projectDirectory: '.'
+    arguments: 'pub run intl_utils:generate'
+    
+- task: FlutterBuild@0
+  inputs:
+    target: 'ios'
+    projectDirectory: '.'
+    debugMode: false    
+    iosCodesign: false
+    buildNumber: '$(Build.BuildNumber)'
+
+- task: Xcode@5
+  displayName: "Code Sign ipa for Distribution"
+  inputs:
+    actions: "build"
+    scheme: "Runner"
+    sdk: "$(sdk)"
+    configuration: "$(configuration)"
+    xcWorkspacePath: "ios/Runner.xcworkspace"
+    xcodeVersion: "default"
+    packageApp: true
+    signingOption: "manual"
+    signingIdentity: "$(APPLE_CERTIFICATE_SIGNING_IDENTITY)"
+    provisioningProfileUuid: "$(APPLE_PROV_PROFILE_UUID)"
+
+- task: AppStoreRelease@1
+  inputs:
+    serviceEndpoint: 'App Store Connect'
+    releaseTrack: 'TestFlight'
+    appIdentifier: 'com.kangarootime.k2.workforce'
+    appType: 'iOS'
+    shouldSkipWaitingForProcessing: true
+    distributedToExternalTesters: false
+#    externalTestersGroups: 'Internal Testers'
+    appSpecificId: '1593388892'
+#    releaseNotes: 'filename'
